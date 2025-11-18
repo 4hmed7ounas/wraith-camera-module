@@ -149,11 +149,9 @@ class TextRecognitionModel:
         """Initialize PaddleOCR for plate text recognition."""
         try:
             logger.info("Initializing PaddleOCR...")
+            # Use only essential parameters supported by current PaddleOCR
             self.ocr = PaddleOCR(
-                use_angle_cls=True,
-                lang='en',
-                use_gpu=False,  # Force CPU (Raspberry Pi)
-                show_log=False
+                lang='en'
             )
             logger.info("✓ PaddleOCR initialized successfully")
         except Exception as e:
@@ -325,6 +323,7 @@ class PlateReaderPipeline:
             target_fps: Target frames per second
         """
         self.camera_id = camera_id
+        self.model_path = model_path
         self.conf_threshold = conf_threshold
         self.target_fps = target_fps
         self.frame_time = 1.0 / target_fps
@@ -354,7 +353,7 @@ class PlateReaderPipeline:
 
             # Initialize detection model
             self.detector = PlateDetectionModel(
-                model_path=model_path,
+                model_path=self.model_path,
                 conf_threshold=self.conf_threshold
             )
 

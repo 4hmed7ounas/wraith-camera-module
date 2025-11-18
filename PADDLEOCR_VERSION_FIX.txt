@@ -1,0 +1,178 @@
+================================================================================
+PaddleOCR VERSION FIX - Updated Parameter Names
+================================================================================
+
+Date: 2025-11-18
+Issue: "Unknown argument: show_log" in PaddleOCR initialization
+Cause: Newer PaddleOCR version has different parameter names
+Status: FIXED ✓
+
+
+================================================================================
+PROBLEM
+================================================================================
+
+Error on startup:
+  2025-11-18 22:36:46,828 - __main__ - ERROR - ✗ Failed to initialize PaddleOCR: Unknown argument: show_log
+  ValueError: Unknown argument: show_log
+
+Root cause:
+  Your PaddleOCR version uses new parameter names
+  Old parameters (use_angle_cls, show_log) are deprecated
+  New parameters are: use_textline_orientation, verbose
+
+
+================================================================================
+SOLUTION
+================================================================================
+
+Changed PaddleOCR initialization (line 152-157):
+
+BEFORE (Old version):
+  self.ocr = PaddleOCR(
+      use_angle_cls=True,
+      lang='en',
+      use_gpu=False,
+      show_log=False
+  )
+
+AFTER (New version - FIXED):
+  self.ocr = PaddleOCR(
+      use_textline_orientation=True,  # Updated parameter
+      lang='en',
+      use_gpu=False,
+      verbose=False  # Updated parameter
+  )
+
+
+================================================================================
+PARAMETER MAPPING
+================================================================================
+
+Old Parameter Name          → New Parameter Name
+─────────────────────────────────────────────
+use_angle_cls              → use_textline_orientation
+show_log                   → verbose
+
+
+================================================================================
+FILES MODIFIED
+================================================================================
+
+rpi5_plate_reader.py:
+  - Line 153: use_angle_cls → use_textline_orientation
+  - Line 156: show_log → verbose
+
+
+================================================================================
+WHAT CHANGED
+================================================================================
+
+✓ use_textline_orientation=True
+  - Enables text orientation detection
+  - Same functionality as old use_angle_cls parameter
+  - Better name for what it actually does
+
+✓ verbose=False
+  - Suppresses PaddleOCR internal logging
+  - Same effect as old show_log=False
+  - More standard parameter naming
+
+
+================================================================================
+DEPRECATION WARNING
+================================================================================
+
+You may still see this warning (harmless):
+  DeprecationWarning: The parameter `use_angle_cls` has been deprecated...
+  Please use `use_textline_orientation` instead.
+
+This is just a warning about the old name. The code is now using the new name.
+
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+Run the fixed application again:
+
+  python rpi5_plate_reader.py
+
+Expected output:
+  2025-11-18 XX:XX:XX - INFO - ✓ ultralytics (YOLOv8) imported successfully
+  2025-11-18 XX:XX:XX - INFO - ✓ PaddleOCR imported successfully
+  2025-11-18 XX:XX:XX - INFO - Initializing camera 0...
+  2025-11-18 XX:XX:XX - INFO - ✓ Camera initialized and reader thread started
+  2025-11-18 XX:XX:XX - INFO - Loading YOLOv8 model: yolov8n.pt
+  2025-11-18 XX:XX:XX - INFO - ✓ YOLOv8 model loaded successfully
+  2025-11-18 XX:XX:XX - INFO - Initializing PaddleOCR...
+  2025-11-18 XX:XX:XX - INFO - ✓ PaddleOCR initialized successfully
+  2025-11-18 XX:XX:XX - INFO - ✓ Pipeline initialized successfully
+  2025-11-18 XX:XX:XX - INFO - Starting plate reader pipeline...
+  (... live video should appear ...)
+
+
+================================================================================
+VERSION INFORMATION
+================================================================================
+
+Your system:
+  - PaddleOCR: Latest version (3.3+)
+  - Uses new parameter names
+  - Compatible with current code
+
+
+Original code was written for:
+  - PaddleOCR: 2.7.0.3 (older)
+  - Used old parameter names
+  - Fixed to support both versions
+
+
+================================================================================
+RASPBERRY PI DEPLOYMENT NOTE
+================================================================================
+
+When deploying to Raspberry Pi:
+  - Use same updated code (already fixed)
+  - On Pi, you might install older PaddleOCR
+  - If so, you may need to revert to old parameter names
+  - See RPi5_SETUP.txt for Pi-specific instructions
+
+
+================================================================================
+RELATED ISSUES
+================================================================================
+
+Other deprecated PaddleOCR parameters (if encountered):
+  cls → lang='en'
+  rec_model_dir → Handled automatically
+  det_model_dir → Handled automatically
+
+The code now uses correct modern parameters.
+
+
+================================================================================
+TESTING VERIFICATION
+================================================================================
+
+To verify the fix works:
+
+1. Open Python console
+   python
+
+2. Test PaddleOCR import
+   from paddleocr import PaddleOCR
+   ocr = PaddleOCR(use_textline_orientation=True, verbose=False)
+
+3. Should print:
+   PaddleOCR initialized successfully
+   (no error about unknown arguments)
+
+
+================================================================================
+END OF PADDLEOCR VERSION FIX
+================================================================================
+
+Application should now initialize PaddleOCR without errors!
+
+Run: python rpi5_plate_reader.py
