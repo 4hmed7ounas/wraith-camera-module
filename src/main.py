@@ -63,6 +63,7 @@ class MultiDetectionSystem:
         self.frame_count = 0
         self.fps = 0
         self.last_time = time.time()
+        self.fps_update_time = time.time()
 
     def _initialize_modules(self):
         """Initialize enabled detection modules."""
@@ -111,34 +112,33 @@ class MultiDetectionSystem:
         Returns:
             Processed frame with all detections
         """
-        original_frame = frame.copy()
-
-        # Face Recognition
+        # Face Recognition (highest priority - runs every 5 frames)
         if self.enable_face_recognition and self.face_system:
             try:
                 face_locations, face_names = self.face_system.process_frame(
                     frame,
-                    callback_unknown_face=self._ask_for_name
+                    callback_unknown_face=None  # Disable unknown face prompt for performance
                 )
                 if face_locations:
                     frame = self.face_system.draw_faces(frame, face_locations, face_names)
             except Exception as e:
                 print(f"[ERROR] Face recognition failed: {e}")
 
-        # Object Detection
+        # Object Detection (runs every 2 frames)
         if self.enable_object_detection and self.object_system:
             try:
                 detections, frame = self.object_system.process_frame(frame)
             except Exception as e:
                 print(f"[ERROR] Object detection failed: {e}")
 
-        # OCR (Text Recognition)
+        # OCR (Text Recognition) (lowest priority - runs every 10 frames)
         if self.enable_ocr and self.ocr_system:
             try:
                 ocr_detections, frame = self.ocr_system.process_frame(
                     frame,
                     confidence_threshold=0.3,
-                    filter_size=True
+                    filter_size=True,
+                    show_confidence=False  # Disable for performance
                 )
             except Exception as e:
                 print(f"[ERROR] OCR failed: {e}")
@@ -155,23 +155,27 @@ class MultiDetectionSystem:
         Returns:
             Frame with information overlay
         """
-        # Update FPS
+        # Update FPS more frequently for accurate display
         current_time = time.time()
-        if current_time - self.last_time >= 1.0:
-            self.fps = self.frame_count
+        time_diff = current_time - self.fps_update_time
+
+        if time_diff >= 0.5:  # Update every 0.5 seconds
+            self.fps = int(self.frame_count / time_diff)
             self.frame_count = 0
-            self.last_time = current_time
+            self.fps_update_time = current_time
 
         # Draw info text
         info_y = 30
-        info_color = (255, 255, 255)
+        info_color = (0, 255, 0)  # Green for better visibility
         font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.7
+        font_scale = 0.6
         thickness = 2
 
-        # FPS
-        cv2.putText(frame, f"FPS: {self.fps}", (10, info_y),
-                   font, font_scale, info_color, thickness)
+        # FPS with background
+        fps_text = f"FPS: {self.fps}"
+        text_size = cv2.getTextSize(fps_text, font, font_scale, thickness)[0]
+        cv2.rectangle(frame, (5, 5), (15 + text_size[0], info_y + 5), (0, 0, 0), cv2.FILLED)
+        cv2.putText(frame, fps_text, (10, info_y), font, font_scale, info_color, thickness)
 
         # Active modules
         modules = []
@@ -182,14 +186,10 @@ class MultiDetectionSystem:
         if self.enable_ocr:
             modules.append("OCR")
 
-        modules_text = " | ".join(modules)
-        cv2.putText(frame, f"Modules: {modules_text}", (10, info_y + 35),
-                   font, font_scale, info_color, thickness)
-
-        # Instructions
-        cv2.putText(frame, "Press 'q' to quit, 's' to save frame, 't' to toggle OCR",
-                   (10, frame.shape[0] - 20),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+        modules_text = f"Modules: {' | '.join(modules)}"
+        text_size = cv2.getTextSize(modules_text, font, font_scale, thickness)[0]
+        cv2.rectangle(frame, (5, info_y + 10), (15 + text_size[0], info_y + 45), (0, 0, 0), cv2.FILLED)
+        cv2.putText(frame, modules_text, (10, info_y + 35), font, font_scale, info_color, thickness)
 
         return frame
 
@@ -202,17 +202,19 @@ class MultiDetectionSystem:
             print("[ERROR] Failed to open camera!")
             return
 
-        # Set camera properties
+        # Set camera properties with optimizations
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_height)
         cap.set(cv2.CAP_PROP_FPS, self.fps_limit)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize buffer to reduce lag
 
-        print(f"[INFO] Camera opened successfully")
+        print("[INFO] Camera opened successfully")
+        print(f"[INFO] Resolution: {self.frame_width}x{self.frame_height}")
         print("[INFO] Starting video processing...")
-        print("[INFO] Press 'q' to quit, 's' to save frame")
+        print("[INFO] Press 'q' to quit, 's' to save frame, 't' to toggle OCR")
         print()
 
-        ocr_enabled = self.enable_ocr
+        # ocr_enabled = self.enable_ocr
 
         try:
             while True:
@@ -221,10 +223,6 @@ class MultiDetectionSystem:
                 if not ret:
                     print("[ERROR] Failed to read frame from camera")
                     break
-
-                # Resize frame if needed
-                if frame.shape[1] != self.frame_width or frame.shape[0] != self.frame_height:
-                    frame = cv2.resize(frame, (self.frame_width, self.frame_height))
 
                 # Process frame through all modules
                 frame = self.process_frame(frame)
@@ -237,8 +235,8 @@ class MultiDetectionSystem:
 
                 self.frame_count += 1
 
-                # Handle keyboard input
-                key = cv2.waitKey(int(self.frame_time * 1000)) & 0xFF
+                # Handle keyboard input with minimal wait for responsiveness
+                key = cv2.waitKey(1) & 0xFF
 
                 if key == ord('q'):
                     print("\n[INFO] Quitting application...")

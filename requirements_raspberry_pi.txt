@@ -1,0 +1,37 @@
+# Raspberry Pi 5 Optimized Requirements
+# Install with: pip install -r requirements_raspberry_pi.txt
+
+# Core dependencies
+opencv-python>=4.8.0
+numpy>=1.24.0,<2.0  # Pin to avoid compatibility issues
+Pillow>=10.0.0
+
+# Object Detection (YOLOv8) - Use smallest models
+ultralytics>=8.0.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Face Recognition - Use lightweight version
+# NOTE: DeepFace is heavy for Pi, consider disabling or using lightweight alternative
+deepface>=0.0.75
+tf-keras>=2.15.0
+
+# OCR (EasyOCR) - OPTIONAL, very resource intensive
+# Uncomment only if you need OCR functionality
+# easyocr>=1.7.0
+
+# Utilities
+scikit-image>=0.21.0
+scipy>=1.11.0
+pyyaml>=6.0.0
+
+# Performance monitoring
+psutil>=5.9.0
+
+# Raspberry Pi specific
+# picamera2  # Uncomment if using Pi Camera Module
+# RPi.GPIO   # Uncomment if using GPIO features
+
+# Optional: Web streaming
+# flask>=2.3.0  # For web interface
+# flask-cors>=4.0.0

@@ -27,6 +27,12 @@ class OCRSystem:
         self.reader = None
         self.lock = threading.Lock()
 
+        # Performance optimizations
+        self.frame_skip = 10  # Process every 10th frame (OCR is very slow)
+        self.process_frame_count = 0
+        self.cached_detections = []
+        self.cache_valid_frames = 0
+
         try:
             print(f"[INFO] Loading EasyOCR reader for languages: {languages}")
             self.reader = easyocr.Reader(languages, gpu=gpu)
@@ -234,10 +240,24 @@ class OCRSystem:
         Returns:
             Tuple of (detections, annotated_frame)
         """
+        self.process_frame_count += 1
+
+        # Use cached results for skipped frames
+        if self.process_frame_count % self.frame_skip != 0:
+            if self.cache_valid_frames > 0:
+                self.cache_valid_frames -= 1
+                annotated_frame = self.draw_text_detections(frame, self.cached_detections, show_confidence)
+                return self.cached_detections, annotated_frame
+            return [], frame
+
         detections = self.detect_text(frame, confidence_threshold)
 
         if filter_size:
             detections = self.filter_by_size(detections)
+
+        # Cache results
+        self.cached_detections = detections
+        self.cache_valid_frames = self.frame_skip - 1
 
         annotated_frame = self.draw_text_detections(frame, detections, show_confidence)
 

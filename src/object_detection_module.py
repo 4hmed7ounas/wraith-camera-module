@@ -26,6 +26,12 @@ class ObjectDetectionSystem:
         self.model = None
         self.class_names = []
 
+        # Performance optimizations
+        self.frame_skip = 3  # Process every 3rd frame (increased for better performance)
+        self.process_frame_count = 0
+        self.cached_detections = []
+        self.cached_frame = None
+
         try:
             # Load YOLOv8 model (downloads if not present)
             print(f"[INFO] Loading YOLOv8 model: {model_name}")
@@ -49,9 +55,24 @@ class ObjectDetectionSystem:
         if self.model is None:
             return [], frame
 
+        self.process_frame_count += 1
+
+        # Use cached results for skipped frames
+        if self.process_frame_count % self.frame_skip != 0:
+            if self.cached_frame is not None:
+                annotated_frame = self.draw_detections(frame, self.cached_detections)
+                return self.cached_detections, annotated_frame
+            return [], frame
+
         try:
-            # Run inference
-            results = self.model(frame, verbose=False, conf=self.confidence_threshold)
+            # Run inference with optimizations
+            results = self.model(
+                frame,
+                verbose=False,
+                conf=self.confidence_threshold,
+                half=True,  # Use FP16 for faster inference
+                device='cpu'  # Explicitly set device
+            )
 
             detections = []
 
@@ -79,6 +100,10 @@ class ObjectDetectionSystem:
                         'height': y2 - y1
                     }
                     detections.append(detection)
+
+            # Cache results
+            self.cached_detections = detections
+            self.cached_frame = frame.copy()
 
             # Annotate frame
             annotated_frame = self.draw_detections(frame, detections)

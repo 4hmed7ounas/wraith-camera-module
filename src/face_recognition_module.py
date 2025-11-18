@@ -44,9 +44,14 @@ class FaceRecognitionSystem:
 
         # Face detection parameters
         self.process_frame_count = 0
-        self.frame_skip = 3  # Process every 3rd frame for performance
+        self.frame_skip = 5  # Process every 5th frame for performance
         self.model_name = "VGG-Face"  # Model for face embedding
         self.distance_threshold = 0.5  # Distance threshold for matching
+
+        # Cache last detected faces
+        self.cached_face_locations = []
+        self.cached_face_names = []
+        self.cache_valid_frames = 0
 
     def load_encodings(self):
         """Load face encodings and names from file."""
@@ -218,14 +223,32 @@ class FaceRecognitionSystem:
         """
         # Skip frames for performance
         self.process_frame_count += 1
+
+        # Use cached results for skipped frames
         if self.process_frame_count % self.frame_skip != 0:
+            if self.cache_valid_frames > 0:
+                self.cache_valid_frames -= 1
+                return self.cached_face_locations, self.cached_face_names
             return [], []
+
+        # Resize frame for faster processing
+        small_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
 
         # Detect faces
-        face_locations = self.detect_faces(frame)
+        face_locations = self.detect_faces(small_frame)
 
         if len(face_locations) == 0:
+            self.cached_face_locations = []
+            self.cached_face_names = []
+            self.cache_valid_frames = 0
             return [], []
+
+        # Scale back face locations to original size
+        for face_loc in face_locations:
+            face_loc['x1'] *= 2
+            face_loc['y1'] *= 2
+            face_loc['x2'] *= 2
+            face_loc['y2'] *= 2
 
         # Get encodings for detected faces
         face_encodings = []
@@ -247,6 +270,11 @@ class FaceRecognitionSystem:
                     if user_input and user_input.strip():
                         face_names[i] = user_input.strip()
                         self.add_face(face_encodings[i], user_input.strip())
+
+        # Cache results
+        self.cached_face_locations = face_locations
+        self.cached_face_names = face_names
+        self.cache_valid_frames = self.frame_skip - 1
 
         return face_locations, face_names
 

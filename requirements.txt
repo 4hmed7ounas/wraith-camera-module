@@ -10,7 +10,7 @@ torchvision>=0.15.0
 
 # Face Recognition (using deepface as alternative to face-recognition)
 deepface>=0.0.75
-tf-keras>=3.0.0
+tf-keras>=2.15.0
 
 # OCR (EasyOCR)
 easyocr>=1.7.0

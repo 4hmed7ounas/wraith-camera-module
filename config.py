@@ -133,4 +133,4 @@ if __name__ == '__main__':
     print(f"Camera: {CAMERA['frame_width']}x{CAMERA['frame_height']} @ {CAMERA['fps_limit']} FPS")
     print()
     print("Available presets: default, performance, accuracy, faces_only, objects_only, ocr_only")
-    print(f"Example: config = get_preset('performance')")
+    print("Example: config = get_preset('performance')")
