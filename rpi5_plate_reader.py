@@ -172,8 +172,8 @@ class TextRecognitionModel:
             if plate_crop is None or plate_crop.size == 0:
                 return ""
 
-            # PaddleOCR expects BGR format
-            results = self.ocr.ocr(plate_crop, cls=True)
+            # Use the new PaddleOCR predict() API (without cls parameter)
+            results = self.ocr.predict(plate_crop)
 
             if not results or not results[0]:
                 return ""
