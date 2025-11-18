@@ -1,0 +1,216 @@
+================================================================================
+INSTALLATION FIX - For Unstable Internet Connections
+================================================================================
+
+Problem: pip install fails with connection timeouts
+Root cause: Downloading large files (45.5MB opencv) over unstable connection
+
+Solution: Install packages one at a time with retry logic
+
+
+================================================================================
+METHOD 1: INSTALL STEP-BY-STEP (SAFEST)
+================================================================================
+
+Activate venv first:
+  .\venv\Scripts\activate
+
+Then install packages one by one (smaller packages first):
+
+1. numpy (essential, small)
+   pip install numpy==1.24.3 --retries 10 --default-timeout 1000
+
+2. Pillow (image handling, small)
+   pip install Pillow --retries 10 --default-timeout 1000
+
+3. requests (networking, small)
+   pip install requests --retries 10 --default-timeout 1000
+
+4. opencv-python-headless (NOT opencv_contrib - we don't need it!)
+   pip install opencv-python-headless==4.8.1.78 --retries 10 --default-timeout 1000
+
+5. ultralytics (YOLO)
+   pip install ultralytics==8.0.205 --retries 10 --default-timeout 1000
+
+6. paddlepaddle (PaddleOCR dependency)
+   pip install paddlepaddle==2.5.0 --retries 10 --default-timeout 1000
+
+7. paddleocr (OCR)
+   pip install paddleocr==2.7.0.3 --retries 10 --default-timeout 1000
+
+8. torch (already installed, but verify)
+   pip install torch==2.0.0 --retries 10 --default-timeout 1000
+
+
+================================================================================
+METHOD 2: USE SIMPLER VERSIONS (FASTEST)
+================================================================================
+
+If step-by-step still fails, use pre-built wheels:
+
+pip install numpy opencv-python ultralytics paddlepaddle paddleocr --retries 10
+
+This installs latest versions instead of exact versions (usually fine).
+
+
+================================================================================
+METHOD 3: IF STILL FAILING - SKIP opencv-python-headless
+================================================================================
+
+The plate reader needs OpenCV. If opencv-python-headless fails:
+
+Try standard opencv-python instead:
+  pip install opencv-python --retries 10 --default-timeout 1000
+
+It's larger but same functionality.
+
+
+================================================================================
+WHAT'S ACTUALLY NEEDED (Minimal)
+================================================================================
+
+You ONLY need these core packages:
+
+✓ opencv-python or opencv-python-headless (image processing)
+✓ numpy (numerical computing)
+✓ ultralytics (YOLOv8)
+✓ paddleocr (text recognition)
+✓ paddlepaddle (paddleocr dependency)
+✓ torch (ultralytics dependency)
+
+Everything else will install automatically as dependencies.
+
+
+================================================================================
+IF ALL ELSE FAILS - MINIMAL TEST
+================================================================================
+
+Just test with what you have:
+
+python test_on_pc.py
+
+This will tell you:
+1. What's missing
+2. What works
+3. Which package to install next
+
+Install only what's actually missing.
+
+
+================================================================================
+QUICK COMMAND (Best Option)
+================================================================================
+
+Copy-paste this single command:
+
+pip install --retries 10 --default-timeout 1000 \
+    numpy \
+    opencv-python-headless \
+    ultralytics \
+    paddlepaddle \
+    paddleocr \
+    torch \
+    torchvision
+
+This installs all at once with retry logic enabled.
+
+
+================================================================================
+WHY opencv_contrib_python FAILED
+================================================================================
+
+Your pip output shows it was trying to download:
+  opencv_contrib_python-4.10.0.84-cp37-abi3-win_amd64.whl (45.5 MB)
+
+This is:
+- opencv_contrib (not the regular opencv)
+- 45.5 MB (large file for unstable connection)
+- Python 3.13 compatible but from older build
+
+Solution: Use opencv-python-headless instead (lighter, sufficient)
+
+
+================================================================================
+VERIFY INSTALLATION
+================================================================================
+
+After installing, test each package:
+
+python -c "import cv2; print(f'✓ OpenCV: {cv2.__version__}')"
+python -c "import numpy; print('✓ NumPy OK')"
+python -c "from ultralytics import YOLO; print('✓ YOLOv8 OK')"
+python -c "from paddleocr import PaddleOCR; print('✓ PaddleOCR OK')"
+python -c "import torch; print('✓ PyTorch OK')"
+
+
+================================================================================
+RECOMMENDED APPROACH
+================================================================================
+
+1. Activate venv
+   .\venv\Scripts\activate
+
+2. Install everything at once with retries
+   pip install --retries 10 --default-timeout 1000 numpy opencv-python-headless ultralytics paddlepaddle paddleocr torch torchvision
+
+3. If timeout occurs, just run the command again
+   pip will resume where it left off
+
+4. Once done, test
+   python test_on_pc.py
+
+5. If test shows missing packages, install only those
+   pip install <missing-package> --retries 10
+
+
+================================================================================
+INTERNET STABILITY TIPS
+================================================================================
+
+While installing:
+1. Close other programs (browsers, downloads, streams)
+2. Restart your WiFi router
+3. Use Ethernet if available (most stable)
+4. Install during off-peak hours
+5. Use --retries 10 flag (built-in retry logic)
+6. Use --default-timeout 1000 (1000 seconds = 16+ minutes per file)
+
+
+================================================================================
+IF CONNECTION IS VERY UNSTABLE
+================================================================================
+
+Option 1: Use a different PC/network
+  - Borrow a PC with stable WiFi
+  - Use a library or cafe WiFi
+  - Use mobile hotspot as fallback
+
+Option 2: Download on stable connection, transfer
+  - Download wheels on stable PC
+  - Copy .whl files to your PC
+  - Install locally: pip install *.whl
+
+Option 3: Pre-downloaded bundle
+  - I can create a requirements.txt
+  - You download once on stable connection
+  - Transfer and install locally
+
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Choose installation method (I recommend: step-by-step or quick command)
+
+2. Run installation with retry flags
+
+3. Verify with test commands
+
+4. Run: python test_on_pc.py
+
+5. Report any remaining errors
+
+
+================================================================================
+END OF INSTALLATION FIX
+================================================================================

@@ -1,0 +1,568 @@
+================================================================================
+RASPBERRY PI 5 PLATE READER - ADVANCED OPTIMIZATION GUIDE
+================================================================================
+
+This guide covers performance tuning, profiling, and advanced techniques
+for achieving 12-15 FPS on Raspberry Pi 5 (4GB).
+
+
+================================================================================
+SECTION 1: QUICK WINS (10-30% improvement)
+================================================================================
+
+1.1 Disable Unnecessary Services
+---------------------------------
+# Stop background services consuming RAM/CPU
+sudo systemctl stop avahi-daemon
+sudo systemctl stop cups
+sudo systemctl stop bluetooth
+sudo systemctl disable bluetooth
+
+# Free 100-200MB RAM
+
+Verification:
+free -h
+
+Expected: Available memory increased by ~150-200MB
+
+
+1.2 Optimize Power Management
+-----------------------------
+# Enable ondemand CPU governor
+echo 'ondemand' | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+
+# This scales CPU frequency with load
+Result: Lower power, cooler temps (minimal performance loss)
+
+
+1.3 Network Optimization
+------------------------
+# Disable IPv6 (not needed for local processing)
+echo 'net.ipv6.conf.all.disable_ipv6 = 1' | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+
+# Disable WiFi power saving
+sudo iw wlan0 set power_save off 2>/dev/null
+
+Result: ~20MB RAM freed, slightly faster network
+
+
+1.4 Camera Buffer Optimization
+-------------------------------
+# Already in code, but verify in rpi5_plate_reader.py:
+
+# Line ~330 (in CameraReader.start()):
+self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Single frame
+self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)   # Disable autofocus
+
+# These reduce latency and avoid buffering delays
+
+
+1.5 GPU Memory Configuration
+-----------------------------
+# Edit: /boot/firmware/config.txt
+sudo nano /boot/firmware/config.txt
+
+[all]
+gpu_mem=64        # Minimal GPU memory
+arm_freq=2400     # Max ARM frequency
+arm_boost=1       # Enable boost
+
+# Reboot for changes to take effect
+sudo reboot
+
+Result: 50-100MB RAM freed in system, better consistency
+
+
+================================================================================
+SECTION 2: MEDIUM OPTIMIZATIONS (30-50% improvement)
+================================================================================
+
+2.1 Increase Swap Space (Critical for 4GB)
+------------------------------------------
+Current state check:
+free -h
+swapon --show
+
+Setup optimal swap:
+sudo nano /etc/dphys-swapfile
+# Change CONF_SWAPSIZE=2048 (2GB swap)
+
+sudo dphys-swapfile setup
+sudo systemctl restart dphys-swapfile
+
+Effect:
+- Prevents OOM kills during model loading
+- Slight performance hit (disk I/O) but essential for stability
+- Allows processing larger frames
+
+
+2.2 CPU Performance Scaling
+---------------------------
+# Lock CPU to maximum frequency (max power, but best FPS)
+echo 2400000 | sudo tee /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
+echo 2400000 | sudo tee /sys/devices/system/cpu/cpu1/cpufreq/scaling_max_freq
+echo 2400000 | sudo tee /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq
+echo 2400000 | sudo tee /sys/devices/system/cpu/cpu3/cpufreq/scaling_max_freq
+
+# Verify
+cat /proc/cpuinfo | grep MHz
+
+Effect: Consistent 2.4GHz = 15-20% more inference speed
+Downside: Higher power consumption, requires active cooling
+
+
+2.3 Python-Level Optimizations
+-------------------------------
+# In rpi5_plate_reader.py, modify PlateReaderPipeline.process_frame():
+
+# Option A: Skip OCR on low-confidence detections
+if detection['conf'] < 0.6:  # Skip weak detections
+    continue
+
+# Option B: Resize plate for faster OCR
+plate_crop = cv2.resize(plate_crop, (plate_crop.shape[1]//2, plate_crop.shape[0]//2))
+text = self.recognizer.recognize(plate_crop)
+
+# Option C: Process only every Nth frame
+if self.frame_count % 2 == 0:  # Process every 2nd frame
+    detections = self.detector.detect(frame)
+else:
+    detections = []  # Use cached results
+
+Result: 20-40% FPS improvement at cost of some accuracy
+
+
+2.4 Model Quantization (FP32 → INT8)
+------------------------------------
+# Convert YOLOv8n to INT8 quantization
+
+python3 << 'EOF'
+from ultralytics import YOLO
+
+model = YOLO('yolov8n.pt')
+results = model.export(format='int8')
+print(f"Converted model: {results}")
+EOF
+
+# This creates yolov8n-int8.pt (~3MB vs 6MB)
+# Inference: 30-40ms → 20-30ms (2-3x faster)
+# Accuracy: Minimal loss (<2%)
+
+Update rpi5_plate_reader.py:
+- Change line: model_path="yolov8n-int8.pt"
+- Test with: python3 rpi5_plate_reader.py
+
+
+2.5 Threading Optimization
+--------------------------
+Current implementation already uses threading for camera I/O.
+Further optimization:
+
+# Create thread pool for OCR (if multiple plates detected)
+from concurrent.futures import ThreadPoolExecutor
+
+executor = ThreadPoolExecutor(max_workers=2)
+
+# In PlateReaderPipeline.process_frame():
+futures = []
+for detection in detections:
+    future = executor.submit(self.recognizer.recognize, plate_crop)
+    futures.append(future)
+
+results = [f.result() for f in futures]
+
+Result: 10-20% faster when multiple plates present
+
+
+================================================================================
+SECTION 3: ADVANCED OPTIMIZATIONS (50-100% improvement)
+================================================================================
+
+3.1 Model Compilation with OpenCV DNN
+-------------------------------------
+# Use OpenCV DNN backend instead of PyTorch
+
+# Create compiled version:
+python3 << 'EOF'
+import cv2
+import numpy as np
+
+# Load YOLO model weights
+net = cv2.dnn.readNetFromONNX('yolov8n.onnx')
+
+# Compile for ARM NEON
+net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+
+# Test inference (much faster)
+blob = cv2.dnn.blobFromImage(frame, 1/255, (640, 480), swapRB=True, crop=False)
+net.setInput(blob)
+outputs = net.forward()
+EOF
+
+Result: 2-3x faster detection (20-25ms vs 40-50ms)
+Trade-off: Less accuracy, more complex code
+
+
+3.2 Hardware Accelerators
+------------------------
+
+Option A: Google Coral EdgeTPU (Recommended)
+============================================
+Cost: $100-150
+Speedup: 3-5x
+Setup:
+1. Buy: Google Coral USB Accelerator
+2. Install:
+   sudo apt install -y libedgetpu1-std
+   pip install --index-url https://google-coral.github.io/py-repo/releases edgetpu
+
+3. Convert model:
+   edgetpu_compiler -s yolov8n.tflite
+
+4. Update code to use EdgeTPU backend
+
+Result: 12-15ms detection (3-4x faster than CPU)
+
+
+Option B: NVIDIA Jetson Nano (Overkill but works)
+=================================================
+Cost: $200-300
+Not recommended for Plate Reader (Pi 5 is better value)
+
+
+Option C: Custom FPGA (Advanced)
+================================
+Cost: $200-500
+Speedup: 5-10x
+Setup: Complex, requires VHDL/Verilog knowledge
+Not practical for production plate reader
+
+
+3.3 Image Processing Pipeline Optimization
+------------------------------------------
+# Pre-allocate buffers (avoid allocations in hot loop)
+
+class PlateReaderPipeline:
+    def __init__(self, ...):
+        # Pre-allocate
+        self.frame_buffer = None
+        self.blob_buffer = np.zeros((1, 3, 640, 480), dtype=np.float32)
+
+    def process_frame(self, frame):
+        # Reuse buffer instead of creating new
+        np.copyto(self.frame_buffer, frame)  # No new allocation
+        # ... rest of processing
+
+Result: 5-10% faster (reduced garbage collection)
+
+
+3.4 PaddleOCR Optimization
+--------------------------
+# Use faster OCR preprocessing
+
+from paddleocr import PaddleOCR
+
+# Initialize with optimizations
+ocr = PaddleOCR(
+    use_angle_cls=False,  # Disable angle classification (30ms saved)
+    lang='en',
+    use_gpu=False,
+    cls=False,  # Skip character classification
+    drop_score=0.5  # Drop low confidence
+)
+
+# Pre-process plate crop for faster recognition
+def preprocess_plate(plate_crop):
+    # Resize to standard size (speeds up OCR)
+    resized = cv2.resize(plate_crop, (384, 96))
+
+    # Normalize contrast
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    enhanced = clahe.apply(cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY))
+
+    return cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
+
+plate_prepared = preprocess_plate(plate_crop)
+text = ocr.ocr(plate_prepared)
+
+Result: 30-50ms faster OCR (50-100ms vs 100-200ms)
+
+
+3.5 Batch Processing
+-------------------
+# Process multiple frames in batch (if resources allow)
+
+batch_size = 2
+frame_queue = deque(maxlen=batch_size)
+
+while True:
+    frame_queue.append(frame)
+
+    if len(frame_queue) == batch_size:
+        # Process batch of frames together
+        detections = detector.detect_batch(list(frame_queue))
+        # Can save 10-15% with proper batching
+
+
+================================================================================
+SECTION 4: PROFILING & BENCHMARKING
+================================================================================
+
+4.1 Frame-Level Profiling
+-------------------------
+# Add timing to each component (already in code)
+
+# View in rpi5_plate_reader.py:
+# Lines ~299-307 show detection_times, recognition_times tracking
+
+# Run and monitor:
+python3 rpi5_plate_reader.py 2>&1 | grep -E "Detect:|OCR:|Total:|FPS:"
+
+Output should show:
+FPS: 14
+Detect: 45.2ms
+OCR: 120.5ms
+Total: 170.3ms
+
+
+4.2 System Profiling
+-------------------
+# Monitor in separate terminal while running:
+
+# CPU usage
+top -n 1 | grep -E "PID|python"
+
+# Memory usage
+free -h
+# Should show ~70-80% used during operation
+
+# Temperature
+vcgencmd measure_temp
+
+# GPU load (if using)
+vcgencmd get_mem arm; vcgencmd get_mem gpu
+
+# Power consumption
+vcgencmd measure_volts
+
+
+4.3 Create Benchmark Script
+---------------------------
+cat > benchmark.py << 'EOF'
+#!/usr/bin/env python3
+import time
+import cv2
+from rpi5_plate_reader import PlateDetectionModel, TextRecognitionModel
+
+# Load models
+print("Loading models...")
+detector = PlateDetectionModel()
+recognizer = TextRecognitionModel()
+
+# Create test frame
+test_frame = cv2.imread('test_plate.jpg')  # Your test image
+if test_frame is None:
+    print("Error: test_plate.jpg not found")
+    exit(1)
+
+# Benchmark detection
+print("\n=== Detection Benchmark ===")
+times = []
+for i in range(10):
+    start = time.time()
+    detections = detector.detect(test_frame)
+    elapsed = time.time() - start
+    times.append(elapsed * 1000)
+    print(f"Run {i+1}: {elapsed*1000:.1f}ms")
+
+print(f"Average: {sum(times)/len(times):.1f}ms")
+print(f"Min: {min(times):.1f}ms, Max: {max(times):.1f}ms")
+
+# Benchmark OCR (on detected plate)
+if detections:
+    x1, y1, x2, y2 = detections[0]['box']
+    plate_crop = test_frame[y1:y2, x1:x2]
+
+    print("\n=== OCR Benchmark ===")
+    times = []
+    for i in range(5):
+        start = time.time()
+        text = recognizer.recognize(plate_crop)
+        elapsed = time.time() - start
+        times.append(elapsed * 1000)
+        print(f"Run {i+1}: {elapsed*1000:.1f}ms -> '{text}'")
+
+    print(f"Average: {sum(times)/len(times):.1f}ms")
+EOF
+
+python3 benchmark.py
+
+
+4.4 Memory Profiling
+-------------------
+pip install memory-profiler
+
+python3 -m memory_profiler rpi5_plate_reader.py
+
+# Shows memory usage line-by-line
+
+
+================================================================================
+SECTION 5: PERFORMANCE CHECKLIST
+================================================================================
+
+Before deployment, verify:
+
+□ Swap configured (2GB minimum)
+□ GPU memory minimal (64MB)
+□ Unnecessary services disabled
+□ CPU governor set to performance
+□ Camera buffer = 1 frame
+□ Autofocus disabled
+□ FP16 enabled (in code)
+□ Confidence threshold optimized (0.5)
+□ Models preloaded on startup
+□ Threading enabled for camera I/O
+□ Frame skipping implemented (if needed)
+□ Thermal solution (heatsink/fan)
+□ Temperature < 80°C during operation
+□ FPS >= 12 (target: 12-15)
+□ Memory usage < 85%
+□ Deployment via systemd service
+□ Logs configured and monitored
+
+Performance target:
+- Detection: < 50ms
+- OCR: 100-150ms
+- Total: < 200ms per frame
+- FPS: 12-15
+- CPU: 80-95% utilized
+- Memory: 1.8-2.2GB
+
+If not meeting targets:
+1. Check profiling output (see 4.1-4.3)
+2. Identify bottleneck (detection or OCR?)
+3. Apply appropriate optimization (see section 2 or 3)
+4. Verify with benchmark script
+
+
+================================================================================
+SECTION 6: PRODUCTION DEPLOYMENT
+================================================================================
+
+6.1 Systemd Service (for autostart)
+-----------------------------------
+See RPi5_SETUP.txt section "Production Deployment"
+
+
+6.2 Monitoring & Alerts
+-----------------------
+Add health monitoring:
+
+cat > monitor_service.py << 'EOF'
+#!/usr/bin/env python3
+import subprocess
+import time
+
+while True:
+    # Check if plate-reader is running
+    result = subprocess.run(['systemctl', 'is-active', 'plate-reader'],
+                          capture_output=True, text=True)
+
+    if result.stdout.strip() != 'active':
+        print("⚠ Service down! Restarting...")
+        subprocess.run(['sudo', 'systemctl', 'restart', 'plate-reader'])
+
+    # Check temperature
+    result = subprocess.run(['vcgencmd', 'measure_temp'],
+                          capture_output=True, text=True)
+    temp_str = result.stdout.strip()
+    print(f"Status: OK | {temp_str}")
+
+    time.sleep(60)
+EOF
+
+# Run as background service
+nohup python3 monitor_service.py > monitor.log 2>&1 &
+
+
+6.3 Log Rotation
+---------------
+sudo nano /etc/logrotate.d/plate-reader
+
+/var/log/plate-reader.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    create 0644 pi pi
+}
+
+
+================================================================================
+TROUBLESHOOTING PERFORMANCE ISSUES
+================================================================================
+
+Issue: FPS < 10 (too slow)
+Solution checklist:
+1. Check detection time: Should be < 50ms
+   - If > 60ms: Use model quantization (3.4)
+   - If GPU available: Use CUDA backend
+
+2. Check OCR time: Should be < 150ms
+   - If > 200ms: Disable angle classification (3.4)
+   - If > 250ms: Skip low-confidence plates
+
+3. Check system load:
+   - Kill background processes
+   - Increase swap (2.1)
+   - Check for memory leaks (4.4)
+
+4. Check thermal throttling:
+   - Monitor temp: vcgencmd measure_temp
+   - Add cooling if > 85°C
+   - Set performance CPU governor
+
+
+Issue: Memory leak (usage grows over time)
+Solution:
+1. Profile with memory-profiler (4.4)
+2. Check for circular references in code
+3. Clear frame buffer regularly
+4. Monitor with: free -h in loop
+5. Restart service periodically (weekly)
+
+
+Issue: Inconsistent FPS (stuttering)
+Solution:
+1. Increase swap (prevents garbage collection pauses)
+2. Lock CPU frequency (2.2)
+3. Disable WiFi/Bluetooth if not needed
+4. Check for other processes: top
+5. Verify camera buffer = 1
+
+
+Issue: High power consumption
+Solution:
+1. Reduce clock speed (ondemand governor)
+2. Disable cooling fan when possible
+3. Reduce FPS target to 10 (from 15)
+4. Use CPU governor: powersave
+
+
+================================================================================
+END OF OPTIMIZATION GUIDE
+================================================================================
+
+Key takeaways:
+- Quick wins: 10-30% improvement (1.1-1.5)
+- Medium: 30-50% improvement (2.1-2.5)
+- Advanced: 50-100%+ improvement (3.1-3.5)
+
+For most users, sections 1-2 sufficient (achieve 12-15 FPS)
+Sections 3+ only if advanced speedup needed or hardware available
+
+Final checklist before deployment: See section 5

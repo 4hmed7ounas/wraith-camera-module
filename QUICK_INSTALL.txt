@@ -1,0 +1,212 @@
+================================================================================
+QUICK INSTALL - Fastest Way to Get Running
+================================================================================
+
+Problem: Your internet connection is unstable, pip keeps timing out
+Solution: Minimal installation of only essential packages
+
+Time needed: 5-10 minutes (instead of 30+ with retries)
+
+
+================================================================================
+STEP 1: ACTIVATE VIRTUAL ENVIRONMENT
+================================================================================
+
+.\venv\Scripts\activate
+
+You should see (venv) at the start of your terminal
+
+
+================================================================================
+STEP 2: INSTALL MINIMAL PACKAGES
+================================================================================
+
+Copy-paste this single command:
+
+pip install --retries 5 --default-timeout 500 numpy opencv-python ultralytics
+
+
+That's it. Just 3 packages, no paddleocr (which is causing the download issues).
+
+Expected output:
+  Successfully installed numpy
+  Successfully installed opencv-python
+  Successfully installed ultralytics
+  (+ some dependencies)
+
+
+================================================================================
+STEP 3: RUN LIGHTWEIGHT PLATE READER
+================================================================================
+
+python plate_reader_lightweight.py
+
+This version:
+✓ Detects plates in real-time
+✓ Shows bounding boxes
+✓ Displays FPS counter
+✓ NO OCR (no need for paddleocr/paddlepaddle)
+✓ Works with just numpy + opencv + ultralytics
+
+
+================================================================================
+WHAT IF INSTALLATION STILL FAILS?
+================================================================================
+
+Try one package at a time:
+
+pip install --retries 5 --default-timeout 500 numpy
+pip install --retries 5 --default-timeout 500 opencv-python
+pip install --retries 5 --default-timeout 500 ultralytics
+
+If one fails, wait 5 minutes and try again.
+
+The --retries 5 flag will auto-retry if connection drops.
+
+
+================================================================================
+IF opencv-python FAILS (Large file)
+================================================================================
+
+Try the headless version:
+
+pip install --retries 5 --default-timeout 500 opencv-python-headless
+
+Same functionality, slightly smaller file size.
+
+
+================================================================================
+VERIFY INSTALLATION
+================================================================================
+
+Test if everything installed:
+
+python -c "import cv2; print('✓ OpenCV OK')"
+python -c "import numpy; print('✓ NumPy OK')"
+python -c "from ultralytics import YOLO; print('✓ YOLOv8 OK')"
+
+All three should print OK
+
+
+================================================================================
+WHAT YOU GET WITH THIS
+================================================================================
+
+✓ Real-time plate detection
+✓ Live video with bounding boxes
+✓ FPS counter
+✓ Timing information
+✓ Can test on your PC immediately
+
+What's missing (optional):
+- Text recognition (OCR) - requires paddleocr (heavy dependencies)
+
+You can add OCR later once basic version works.
+
+
+================================================================================
+IF YOU WANT FULL VERSION (With OCR) LATER
+================================================================================
+
+Once lightweight version works, add these:
+
+pip install --retries 5 --default-timeout 500 paddlepaddle
+pip install --retries 5 --default-timeout 500 paddleocr
+
+Then run original version:
+  python rpi5_plate_reader.py
+
+But start with lightweight first.
+
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Activate venv
+   .\venv\Scripts\activate
+
+2. Install minimal packages
+   pip install --retries 5 --default-timeout 500 numpy opencv-python ultralytics
+
+3. Run lightweight version
+   python plate_reader_lightweight.py
+
+4. Point your camera at some text/images and verify detections work
+
+5. (Optional) Add paddleocr later for full version with OCR
+
+
+================================================================================
+EXPECTED OUTPUT
+================================================================================
+
+When you run plate_reader_lightweight.py, you should see:
+
+[Terminal]
+2025-11-18 XX:XX:XX - INFO - ✓ YOLOv8 imported successfully
+2025-11-18 XX:XX:XX - INFO - Loading YOLOv8 model: yolov8n.pt
+2025-11-18 XX:XX:XX - INFO - ✓ YOLOv8 model loaded successfully
+2025-11-18 XX:XX:XX - INFO - Initializing camera 0...
+2025-11-18 XX:XX:XX - INFO - ✓ Camera initialized: 640x480 @ 30 FPS
+2025-11-18 XX:XX:XX - INFO - PLATE READER RUNNING (Detection Only)
+2025-11-18 XX:XX:XX - INFO - Target FPS: 15
+2025-11-18 XX:XX:XX - INFO - Press 'q' to quit
+
+[Window]
+- Live video from your camera
+- Green boxes around detected objects
+- FPS counter in top-left: "FPS: 12.5"
+- Detections count: "Detections: 3"
+
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Q: "Module not found: cv2"
+A: Run: pip install --retries 5 --default-timeout 500 opencv-python
+
+Q: "Module not found: ultralytics"
+A: Run: pip install --retries 5 --default-timeout 500 ultralytics
+
+Q: "Connection timed out"
+A: Wait 5 minutes, run again. The --retries flag should auto-retry.
+
+Q: "No camera detected"
+A:
+  - Check camera is plugged in
+  - Try: python -c "import cv2; cap=cv2.VideoCapture(0); print(cap.isOpened())"
+  - If False, camera not detected
+
+Q: "Model download is slow"
+A: This is normal - first run downloads YOLOv8 model (~6MB)
+   - Only happens once
+   - Subsequent runs are instant
+
+
+================================================================================
+ESTIMATED TIMINGS
+================================================================================
+
+Installation: 3-5 minutes (depends on connection)
+First run: 2-3 minutes (model download)
+Subsequent runs: Immediate startup
+Runtime: ~15 FPS on your PC
+
+
+================================================================================
+YOU ARE HERE
+================================================================================
+
+Step 1: Install minimal packages ← NEXT
+Step 2: Run lightweight version
+Step 3: Test detection works
+Step 4: (Optional) Add full version with OCR
+Step 5: Deploy to Raspberry Pi 5
+
+
+Start with Step 1:
+  pip install --retries 5 --default-timeout 500 numpy opencv-python ultralytics
+
+Good luck! 🚀
