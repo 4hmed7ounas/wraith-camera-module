@@ -1,33 +1,34 @@
 """
-Object Detection Module
-Handles real-time object detection using YOLOv8 model.
+Object Detection Module (Lightweight Version)
+Fast YOLOv8 nano model for real-time detection.
 """
 
 import cv2
 import numpy as np
 from ultralytics import YOLO
 from typing import List, Tuple, Dict
-from pathlib import Path
+import warnings
+
+warnings.filterwarnings('ignore')
 
 class ObjectDetectionSystem:
     """
-    Manages object detection using YOLOv8 model.
+    Lightweight object detection using YOLOv8 nano model.
     """
 
     def __init__(self, model_name: str = "yolov8n.pt", confidence_threshold: float = 0.5):
         """
-        Initialize the object detection system.
+        Initialize object detection.
 
         Args:
-            model_name: YOLOv8 model to use (nano, small, medium, large, etc.)
+            model_name: YOLOv8 model (nano by default for speed)
             confidence_threshold: Minimum confidence for detections
         """
         self.confidence_threshold = confidence_threshold
         self.model = None
-        self.class_names = []
-
-        # Performance optimizations
-        self.frame_skip = 3  # Process every 3rd frame (increased for better performance)
+        self.class_names = {}
+        self.frame_skip = 3
+        self.frame_count = 0
         self.process_frame_count = 0
         self.cached_detections = []
         self.cached_frame = None

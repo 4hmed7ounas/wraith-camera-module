@@ -1,25 +1,20 @@
-# Core dependencies
+# Core dependencies (lightweight versions for speed)
 opencv-python>=4.8.0
+opencv-contrib-python>=4.8.0
 numpy>=1.24.0
 Pillow>=10.0.0
 
-# Object Detection (YOLOv8)
+# Object Detection (YOLOv8 - nano model only for speed)
 ultralytics>=8.0.0
 torch>=2.0.0
 torchvision>=0.15.0
 
-# Face Recognition (using deepface as alternative to face-recognition)
-deepface>=0.0.75
-tf-keras>=2.15.0
-
-# OCR (EasyOCR)
+# OCR (EasyOCR - lightweight, disabled by default)
 easyocr>=1.7.0
 
 # Utilities
-scikit-image>=0.21.0
 scipy>=1.11.0
 pyyaml>=6.0.0
-opencv-contrib-python>=4.8.0
 
 # Performance monitoring
 psutil>=5.9.0
