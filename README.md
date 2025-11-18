@@ -210,6 +210,22 @@ For real-time performance, start with `yolov8n.pt` (nano model).
 
 ## Troubleshooting
 
+### Phone Camera / RTSP / HTTP Issues
+
+For detailed troubleshooting of phone camera streaming, RTSP black screen issues, HTTP fallback, and codec problems:
+
+**→ See: [TROUBLESHOOTING_RTSP_HTTP.md](TROUBLESHOOTING_RTSP_HTTP.md)**
+
+This guide includes:
+- Quick diagnostics for connectivity
+- Solutions for H264 black screen
+- FFmpeg installation steps
+- Automatic fallback behavior
+- URL testing and discovery
+- Performance tips
+
+### General Issues
+
 ### Issue: "No module named 'cv2'"
 **Solution:** Reinstall dependencies
 ```bash
@@ -221,6 +237,7 @@ pip install --force-reinstall opencv-python
 - Check if camera is connected
 - Try different camera ID: `camera_id: 1` or `camera_id: 2`
 - Close other applications using the camera
+- For phone camera: See TROUBLESHOOTING_RTSP_HTTP.md
 
 ### Issue: Very low FPS
 **Solution:**

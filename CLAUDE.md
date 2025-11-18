@@ -1,1 +1,1 @@
-do not make, documentaion files and any structure files, just let me know, what files have you edited and touched.
+do not make, documentaion files, markdown files and any structure files, just let me know, what files have you edited and touched.
